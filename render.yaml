@@ -1,0 +1,39 @@
+services:
+  # Frontend - React/TypeScript with Vite
+  - type: web
+    name: voicesnap-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    envVars:
+      - key: VITE_API_URL
+        value: https://voicesnap-api.onrender.com
+
+  # Backend - FastAPI/Python
+  - type: web
+    name: voicesnap-api
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && python main.py
+    healthCheckPath: /health
+    envVars:
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://voicesnap-frontend.onrender.com
+      - key: ENVIRONMENT
+        value: production

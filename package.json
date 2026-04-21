@@ -1,0 +1,31 @@
+{
+  "name": "voicesnap",
+  "version": "1.0.0",
+  "description": "VoiceSnap - Bring any photographed object to life with AI personality and voice",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && python main.py",
+    "build:frontend": "cd frontend && npm run build",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "lint:frontend": "cd frontend && npm run lint"
+  },
+  "keywords": [
+    "ai",
+    "voice",
+    "elevenlabs",
+    "react",
+    "fastapi",
+    "mobile-web"
+  ],
+  "author": "VoiceSnap Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voicesnap/voicesnap.git"
+  }
+}
