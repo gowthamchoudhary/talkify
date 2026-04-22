@@ -756,7 +756,7 @@ export default function App() {
 
         {/* ─── MEET YOUR OBJECT ─── */}
         {screen === "meet" && profile && (
-          <div className="screen scrollable" style={{ background: "#0d0d15" }}>
+          <div className="screen scrollable" style={{ background: "#0d0d15", paddingBottom: 100 }}>
             <div style={{
               position: "absolute", 
               top: 0, 
@@ -767,7 +767,7 @@ export default function App() {
               pointerEvents: "none",
             }} />
 
-            <div style={{ padding: "60px 24px 100px" }}>
+            <div style={{ padding: "60px 24px 120px" }}>
               <div style={{ textAlign: "center", marginBottom: 28 }}>
                 <div style={{
                   width: 110, 
@@ -785,7 +785,7 @@ export default function App() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 10, flexWrap: "wrap" }}>
-                  <span className="tag tag-lime">{profile.species}</span>
+                  <span className="tag tag-lime">{profile.species || "Object"}</span>
                   {profile.traits.slice(0, 2).map((trait, i) => (
                     <span key={i} className="tag tag-sky">{trait}</span>
                   ))}
@@ -794,8 +794,8 @@ export default function App() {
                 <h2 style={{ color: "var(--text)", fontSize: 30, fontWeight: 800 }}>
                   {profile.name}
                 </h2>
-                <p style={{ color: "var(--sub)", fontSize: 13, marginTop: 6 }}>
-                  "{profile.backstory.substring(0, 100)}..."
+                <p style={{ color: "var(--sub)", fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+                  {profile.backstory.length > 120 ? profile.backstory.substring(0, 120) + "..." : profile.backstory}
                 </p>
               </div>
 
@@ -806,9 +806,9 @@ export default function App() {
                 marginBottom: 24,
               }}>
                 {[
-                  { label: "Species", value: profile.species || "Unknown" },
+                  { label: "Species", value: profile.species || "Object" },
                   { label: "Mood", value: profile.traits[0] || "Curious" },
-                  { label: "Traits", value: profile.traits.length },
+                  { label: "Traits", value: profile.traits.length.toString() },
                 ].map(({ label, value }) => (
                   <div 
                     key={label} 
