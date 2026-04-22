@@ -652,6 +652,127 @@ async def cleanup_inactive_sessions() -> APIResponse:
         )
 
 
+# ============================================================================
+# MAIN API ENDPOINTS
+# ============================================================================
+
+@app.post("/api/identify")
+async def identify_object_endpoint(file: UploadFile = File(...)) -> APIResponse:
+    """
+    Identify object from uploaded photo using Groq Llama Vision API.
+    
+    Args:
+        file: Uploaded image file
+        
+    Returns:
+        Object identification results
+    """
+    try:
+        # Read file data
+        file_data = await file.read()
+        
+        # Validate image file
+        validate_image_file(file_data, file.filename, file.content_type)
+        
+        # Identify object using Groq Llama Vision
+        async with GroqVisionService() as service:
+            identification = await service.identify_object(file_data, file.filename)
+        
+        return APIResponse(
+            success=True,
+            data=identification.model_dump()
+        )
+        
+    except (ValidationError, GeminiError) as e:
+        return APIResponse(
+            success=False,
+            error={"code": e.code, "message": e.message}
+        )
+    except Exception as e:
+        return APIResponse(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)}
+        )
+
+
+@app.post("/api/profile")
+async def create_profile_endpoint(request: ProfileRequest) -> APIResponse:
+    """
+    Generate complete object profile with personality and voice.
+    
+    Args:
+        request: ProfileRequest with identification and voice style
+        
+    Returns:
+        Complete object profile
+    """
+    try:
+        # Generate personality
+        generator = PersonalityGenerator()
+        profile = generator.generate_profile(request.identification)
+        
+        # Create voice if style provided
+        if request.voice_style:
+            async with VoiceDesigner() as designer:
+                voice_config = await designer.create_voice(profile, request.voice_style)
+                profile.voice_config = voice_config
+        
+        return APIResponse(
+            success=True,
+            data=profile.model_dump()
+        )
+        
+    except (ValidationError, ElevenLabsError) as e:
+        return APIResponse(
+            success=False,
+            error={"code": getattr(e, 'code', 'ERROR'), "message": str(e)}
+        )
+    except Exception as e:
+        return APIResponse(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)}
+        )
+
+
+@app.post("/api/sing")
+async def generate_song_endpoint(request: SingRequest) -> APIResponse:
+    """
+    Generate song with lyrics for object character.
+    
+    Args:
+        request: SingRequest with profile and theme
+        
+    Returns:
+        Song with lyrics and audio URL
+    """
+    try:
+        voice_id = request.profile.voice_config.voice_id if request.profile.voice_config else "default_voice"
+        
+        async with MusicGeneratorService() as service:
+            song = await service.generate_song(
+                profile=request.profile,
+                voice_id=voice_id,
+                theme=request.theme,
+                target_duration=45.0
+            )
+        
+        return APIResponse(
+            success=True,
+            data=song.model_dump()
+        )
+        
+    except ElevenLabsError as e:
+        return APIResponse(
+            success=False,
+            error={"code": "MUSIC_ERROR", "message": str(e)}
+        )
+    except Exception as e:
+        return APIResponse(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)}
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
