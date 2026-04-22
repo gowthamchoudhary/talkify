@@ -785,7 +785,7 @@ export default function App() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 10, flexWrap: "wrap" }}>
-                  <span className="tag tag-lime">{profile.category} · {profile.species}</span>
+                  <span className="tag tag-lime">{profile.species}</span>
                   {profile.traits.slice(0, 2).map((trait, i) => (
                     <span key={i} className="tag tag-sky">{trait}</span>
                   ))}
@@ -795,7 +795,7 @@ export default function App() {
                   {profile.name}
                 </h2>
                 <p style={{ color: "var(--sub)", fontSize: 13, marginTop: 6 }}>
-                  "{profile.tagline || profile.speaking_style}"
+                  "{profile.backstory.substring(0, 100)}..."
                 </p>
               </div>
 
@@ -806,9 +806,9 @@ export default function App() {
                 marginBottom: 24,
               }}>
                 {[
-                  { label: "Age", value: profile.age || "Unknown" },
-                  { label: "Mood", value: profile.mood || profile.traits[0] },
-                  { label: "Type", value: profile.category },
+                  { label: "Species", value: profile.species || "Unknown" },
+                  { label: "Mood", value: profile.traits[0] || "Curious" },
+                  { label: "Traits", value: profile.traits.length },
                 ].map(({ label, value }) => (
                   <div 
                     key={label} 
