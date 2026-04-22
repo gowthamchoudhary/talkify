@@ -1,16 +1,16 @@
 """
-Custom exception classes for VoiceSnap API.
+Custom exception classes for Talkify API.
 """
 from typing import Optional, Dict, Any
 
 
-class VoiceSnapException(Exception):
-    """Base exception for VoiceSnap application."""
+class TalkifyException(Exception):
+    """Base exception for Talkify application."""
     
     def __init__(
         self, 
         message: str, 
-        code: str = "VOICESNAP_ERROR",
+        code: str = "TALKIFY_ERROR",
         status_code: int = 500,
         details: Optional[Dict[str, Any]] = None
     ):
@@ -21,7 +21,7 @@ class VoiceSnapException(Exception):
         super().__init__(self.message)
 
 
-class APIError(VoiceSnapException):
+class APIError(TalkifyException):
     """Base class for external API errors."""
     
     def __init__(
@@ -65,7 +65,7 @@ class GeminiError(APIError):
         )
 
 
-class ValidationError(VoiceSnapException):
+class ValidationError(TalkifyException):
     """Error for input validation failures."""
     
     def __init__(self, message: str, field: Optional[str] = None):
@@ -77,7 +77,7 @@ class ValidationError(VoiceSnapException):
         )
 
 
-class FileUploadError(VoiceSnapException):
+class FileUploadError(TalkifyException):
     """Error for file upload issues."""
     
     def __init__(self, message: str, file_type: Optional[str] = None):
@@ -89,7 +89,7 @@ class FileUploadError(VoiceSnapException):
         )
 
 
-class SessionError(VoiceSnapException):
+class SessionError(TalkifyException):
     """Error for session management issues."""
     
     def __init__(self, message: str, session_id: Optional[str] = None):

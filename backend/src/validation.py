@@ -1,5 +1,5 @@
 """
-Validation utilities for VoiceSnap API.
+Validation utilities for Talkify API.
 """
 from typing import List, Dict, Any, Optional
 import mimetypes
@@ -203,9 +203,9 @@ def create_error_response(error: Exception, request_id: Optional[str] = None) ->
     Returns:
         Dict containing standardized error response
     """
-    from src.exceptions import VoiceSnapException
+    from src.exceptions import TalkifyException
     
-    if isinstance(error, VoiceSnapException):
+    if isinstance(error, TalkifyException):
         return {
             "success": False,
             "error": {

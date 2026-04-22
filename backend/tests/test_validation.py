@@ -11,7 +11,7 @@ from src.validation import (
     create_error_response,
     _validate_image_signature
 )
-from src.exceptions import ValidationError, FileUploadError, VoiceSnapException
+from src.exceptions import ValidationError, FileUploadError, TalkifyException
 
 
 class TestImageFileValidation:
@@ -224,9 +224,9 @@ class TestTextSanitization:
 class TestErrorResponseCreation:
     """Test error response creation."""
     
-    def test_voicesnap_exception_response(self):
-        """Test VoiceSnapException error response."""
-        error = VoiceSnapException(
+    def test_talkify_exception_response(self):
+        """Test TalkifyException error response."""
+        error = TalkifyException(
             message="Test error",
             code="TEST_ERROR",
             status_code=400,

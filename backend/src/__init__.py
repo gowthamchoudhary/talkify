@@ -1,1 +1,1 @@
-# VoiceSnap Backend Package
+# Talkify Backend Package

@@ -1,5 +1,5 @@
 """
-VoiceSnap FastAPI Application
+Talkify FastAPI Application
 Main application entry point with middleware, dependencies, and core endpoints.
 """
 import os
@@ -28,6 +28,7 @@ from src.models import (
 from src.services.voice_designer import VoiceDesigner
 from src.services.elevenlabs_service import ElevenLabsService
 from src.services.gemini_vision import GeminiVisionService
+from src.services.groq_vision import GroqVisionService
 from src.services.personality_generator import PersonalityGenerator
 from src.services.sound_effects import SoundEffectsService
 from src.services.music_generator import MusicGeneratorService
@@ -41,19 +42,19 @@ from fastapi import UploadFile, File
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
     # Startup
-    print(f"Starting VoiceSnap API in {settings.environment} mode")
+    print(f"Starting Talkify API in {settings.environment} mode")
     
     yield
     
     # Shutdown
-    print("Shutting down VoiceSnap API")
+    print("Shutting down Talkify API")
     await http_client_manager.close()
 
 
 # FastAPI application with lifespan management
 app = FastAPI(
-    title="VoiceSnap API",
-    description="Backend API for VoiceSnap - Bring objects to life with AI personalities and voices",
+    title="Talkify API",
+    description="Backend API for Talkify - Bring objects to life with AI personalities and voices",
     version="1.0.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
@@ -64,7 +65,7 @@ app = FastAPI(
 if settings.environment == "production":
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["voicesnap-api.onrender.com", "*.onrender.com"]
+        allowed_hosts=["talkify-api.onrender.com", "*.onrender.com"]
     )
 
 # CORS middleware configuration
@@ -121,7 +122,7 @@ async def health_check(
     """
     health_status = {
         "status": "healthy",
-        "service": "voicesnap-api",
+        "service": "talkify-api",
         "version": "1.0.0",
         "environment": settings_dep.environment,
         "timestamp": time.time(),
@@ -146,7 +147,7 @@ async def health_check(
 async def root() -> Dict[str, str]:
     """Root endpoint with basic API information."""
     return {
-        "message": "VoiceSnap API is running",
+        "message": "Talkify API is running",
         "version": "1.0.0",
         "docs": "/docs" if settings.debug else "Documentation disabled in production"
     }
@@ -669,7 +670,7 @@ if __name__ == "__main__":
 @app.post("/api/identify")
 async def identify_object_endpoint(file: UploadFile = File(...)) -> APIResponse:
     """
-    Identify object from uploaded photo using Gemini Vision API.
+    Identify object from uploaded photo using Groq Llama Vision API.
     
     Args:
         file: Uploaded image file
@@ -684,8 +685,8 @@ async def identify_object_endpoint(file: UploadFile = File(...)) -> APIResponse:
         # Validate image file
         validate_image_file(file_data, file.filename, file.content_type)
         
-        # Identify object
-        async with GeminiVisionService() as service:
+        # Identify object using Groq Llama Vision
+        async with GroqVisionService() as service:
             identification = await service.identify_object(file_data, file.filename)
         
         return APIResponse(

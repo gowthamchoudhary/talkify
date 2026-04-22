@@ -103,7 +103,7 @@ class ElevenLabsClient:
             "xi-api-key": self.api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "VoiceSnap/1.0.0"
+            "User-Agent": "Talkify/1.0.0"
         }
     
     def _update_rate_limit_info(self, headers: Dict[str, str]):

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # API Keys
     elevenlabs_api_key: str = Field(default="", alias="ELEVENLABS_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
     
     # CORS Configuration
     cors_origins: List[str] = Field(
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
     # File Upload Settings
     max_file_size: int = Field(default=10 * 1024 * 1024, alias="MAX_FILE_SIZE")  # 10MB
     allowed_image_types: List[str] = Field(
-        default=["image/jpeg", "image/png", "image/webp"],
+        default=["image/jpeg", "image/png", "image/webp", "image/avif"],
         alias="ALLOWED_IMAGE_TYPES"
     )
     

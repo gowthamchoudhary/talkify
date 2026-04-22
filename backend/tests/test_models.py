@@ -1,5 +1,5 @@
 """
-Tests for Pydantic models and validation in VoiceSnap API.
+Tests for Pydantic models and validation in Talkify API.
 """
 import pytest
 from pydantic import ValidationError

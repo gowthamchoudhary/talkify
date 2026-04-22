@@ -1,1 +1,1 @@
-# VoiceSnap Backend Tests
+# Talkify Backend Tests

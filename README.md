@@ -1,6 +1,6 @@
-# VoiceSnap
+# Talkify
 
-VoiceSnap is a mobile web application that transforms photographed objects into interactive AI characters with unique personalities and voices. Using advanced AI technologies, VoiceSnap brings any object to life for engaging conversations and musical performances.
+Talkify is a mobile web application that transforms photographed objects into interactive AI characters with unique personalities and voices. Using advanced AI technologies, Talkify brings any object to life for engaging conversations and musical performances.
 
 ## Features
 
@@ -33,7 +33,7 @@ VoiceSnap is a mobile web application that transforms photographed objects into 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd voicesnap
+   cd talkify
    ```
 
 2. **Set up the backend**
@@ -88,7 +88,7 @@ The backend provides the following endpoints:
 ## Project Structure
 
 ```
-voicesnap/
+talkify/
 ├── frontend/          # React/TypeScript frontend
 │   ├── src/
 │   ├── public/

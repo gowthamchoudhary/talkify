@@ -1,7 +1,7 @@
 {
-  "name": "voicesnap",
+  "name": "talkify",
   "version": "1.0.0",
-  "description": "VoiceSnap - Bring any photographed object to life with AI personality and voice",
+  "description": "Talkify - Bring any photographed object to life with AI personality and voice",
   "private": true,
   "workspaces": [
     "frontend"
@@ -22,10 +22,10 @@
     "fastapi",
     "mobile-web"
   ],
-  "author": "VoiceSnap Team",
+  "author": "Talkify Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/voicesnap/voicesnap.git"
+    "url": "https://github.com/talkify/talkify.git"
   }
 }

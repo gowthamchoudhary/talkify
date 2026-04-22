@@ -279,7 +279,7 @@ class VoiceDesigner:
     
     async def create_voice(self, profile: ObjectProfile, style: VoiceStyle) -> VoiceConfig:
         """
-        Generate unique voice using ElevenLabs Voice Design API.
+        Generate unique voice using ElevenLabs pre-made voices.
         
         Args:
             profile: Object character profile
@@ -304,31 +304,22 @@ class VoiceDesigner:
                     settings=self.style_configurations[style]["voice_settings"]
                 )
             
-            # Generate voice description
-            voice_description = self._build_voice_description(profile, style)
-            
-            # Prepare sample text for voice generation
-            sample_text = f"Hello, I'm {profile.name}. {profile.backstory[:150]}..."
-            
-            # Prepare request payload
-            payload = {
-                "text": sample_text,
-                "voice_description": voice_description,
-                "model_id": "eleven_multilingual_v2"
+            # Map voice styles to pre-made ElevenLabs voice IDs
+            # These are public voices that work without generation
+            voice_id_mapping = {
+                VoiceStyle.MYSTERIOUS: "21m00Tcm4TlvDq8ikWAM",  # Rachel - calm, mysterious
+                VoiceStyle.WARM: "EXAVITQu4vr4xnSDxMaL",      # Bella - warm, friendly
+                VoiceStyle.WISE: "ErXwobaYiN019PkySvjV",       # Antoni - wise, mature
+                VoiceStyle.PLAYFUL: "MF3mGyEYCl7XYWbV9V6O",   # Elli - playful, energetic
+                VoiceStyle.DRAMATIC: "TxGEqnHWrfWFTfGW9XjX",   # Josh - dramatic, expressive
+                VoiceStyle.WHISPERY: "pNInz6obpgDQGcFmaJgB",   # Adam - soft, whispery
             }
             
-            logger.info(f"Creating {style.value} voice for {profile.name} ({profile.species})")
-            logger.debug(f"Voice description: {voice_description}")
+            voice_id = voice_id_mapping.get(style, voice_id_mapping[VoiceStyle.WARM])
             
-            # Call ElevenLabs Voice Design API
-            response = await self.client.post("/voice-generation/generate-voice", json_data=payload)
+            logger.info(f"Using pre-made voice {voice_id} for {profile.name} with style {style.value}")
             
-            if "voice_id" not in response:
-                raise ElevenLabsError("Voice generation response missing voice_id")
-            
-            voice_id = response["voice_id"]
-            
-            # Cache the generated voice
+            # Cache the voice
             self.voice_cache[profile_hash] = voice_id
             
             # Create voice configuration
@@ -338,7 +329,7 @@ class VoiceDesigner:
                 settings=self.style_configurations[style]["voice_settings"]
             )
             
-            logger.info(f"Successfully created voice {voice_id} for {profile.name}")
+            logger.info(f"Successfully assigned voice {voice_id} for {profile.name}")
             
             return voice_config
             

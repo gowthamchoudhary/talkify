@@ -130,7 +130,7 @@ class ElevenLabsService:
     
     async def create_voice_design(self, profile: ObjectProfile, style: VoiceStyle) -> VoiceConfig:
         """
-        Create a unique voice using ElevenLabs Voice Design API.
+        Create a unique voice using ElevenLabs pre-made voices.
         
         Args:
             profile: Object character profile
@@ -143,27 +143,27 @@ class ElevenLabsService:
             ElevenLabsError: If voice generation fails
         """
         try:
-            # Generate voice description based on profile and style
-            voice_description = self._generate_voice_description(profile, style)
+            # Map voice styles to pre-made ElevenLabs voice IDs
+            # These are public voices that work without generation
+            voice_id_mapping = {
+                VoiceStyle.MYSTERIOUS: "21m00Tcm4TlvDq8ikWAM",  # Rachel - calm, mysterious
+                VoiceStyle.WARM: "EXAVITQu4vr4xnSDxMaL",      # Bella - warm, friendly
+                VoiceStyle.WISE: "ErXwobaYiN019PkySvjV",       # Antoni - wise, mature
+                VoiceStyle.PLAYFUL: "MF3mGyEYCl7XYWbV9V6O",   # Elli - playful, energetic
+                VoiceStyle.DRAMATIC: "TxGEqnHWrfWFTfGW9XjX",   # Josh - dramatic, expressive
+                VoiceStyle.WHISPERY: "pNInz6obpgDQGcFmaJgB",   # Adam - soft, whispery
+            }
+            
+            voice_id = voice_id_mapping.get(style, voice_id_mapping[VoiceStyle.WARM])
             
             # Get style-specific voice settings
             style_settings = self.voice_style_mappings[style]["voice_settings"]
             
-            # Prepare request payload for Voice Design API
-            payload = {
-                "text": f"Hello, I'm {profile.name}. {profile.backstory[:100]}...",
-                "voice_description": voice_description,
-                "model_id": "eleven_multilingual_v2"  # Use latest multilingual model
-            }
-            
-            logger.info(f"Creating voice for {profile.name} with style {style.value}")
-            
-            # Call ElevenLabs Voice Design API
-            response = await self.client.post("/voice-generation/generate-voice", json_data=payload)
+            logger.info(f"Using pre-made voice {voice_id} for {profile.name} with style {style.value}")
             
             # Create voice configuration
             voice_config = VoiceConfig(
-                voice_id=response["voice_id"],
+                voice_id=voice_id,
                 style=style,
                 settings=style_settings
             )
@@ -172,7 +172,7 @@ class ElevenLabsService:
             session_id = str(uuid.uuid4())
             self.voice_sessions[session_id] = voice_config
             
-            logger.info(f"Successfully created voice {voice_config.voice_id} for {profile.name}")
+            logger.info(f"Successfully assigned voice {voice_config.voice_id} for {profile.name}")
             
             return voice_config
             
