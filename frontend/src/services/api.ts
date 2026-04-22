@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface IdentifyResponse {
   species: string;
@@ -168,9 +168,9 @@ export class APIClient {
   }
 
   getWebSocketURL(): string {
-    const wsProtocol = this.baseURL.startsWith('https') ? 'wss' : 'ws';
-    const url = this.baseURL.replace(/^https?:\/\//, '');
-    return `${wsProtocol}://${url}/ws/conversation`;
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = window.location.host;
+    return `${protocol}://${host}/ws/conversation`;
   }
 }
 

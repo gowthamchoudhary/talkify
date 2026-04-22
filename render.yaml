@@ -1,10 +1,37 @@
 services:
+  # Backend - FastAPI/Python
+  - type: web
+    name: voicesnap-backend
+    env: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    envVars:
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: ENVIRONMENT
+        value: production
+
   # Frontend - React/TypeScript with Vite
   - type: web
-    name: talkify-frontend
+    name: voicesnap-frontend
     env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     headers:
       - path: /*
         name: X-Frame-Options
@@ -16,24 +43,5 @@ services:
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
     envVars:
-      - key: VITE_API_URL
-        value: https://talkify-api.onrender.com
-
-  # Backend - FastAPI/Python
-  - type: web
-    name: talkify-api
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && python main.py
-    healthCheckPath: /health
-    envVars:
-      - key: ELEVENLABS_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: CORS_ORIGINS
-        value: https://talkify-frontend.onrender.com
-      - key: ENVIRONMENT
-        value: production
+      - key: VITE_API_BASE_URL
+        value: https://voicesnap-backend.onrender.com
