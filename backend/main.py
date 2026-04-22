@@ -5,13 +5,15 @@ Main application entry point with middleware, dependencies, and core endpoints.
 import os
 import time
 import uuid
+import tempfile
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from src.config import settings
 from src.dependencies import (
@@ -36,6 +38,9 @@ from src.exceptions import ElevenLabsError, GeminiError, ValidationError
 from src.websocket_handler import websocket_manager
 from src.validation import validate_image_file
 from fastapi import UploadFile, File
+
+# In-memory map of session audio files
+_audio_files: Dict[str, str] = {}
 
 
 @asynccontextmanager
@@ -71,11 +76,10 @@ if settings.environment == "production":
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 
@@ -360,65 +364,58 @@ async def text_to_speech_endpoint(request: SpeakRequest) -> APIResponse:
 
 
 @app.post("/api/ambient")
-async def generate_ambient_sounds(request: AmbientRequest) -> APIResponse:
+async def generate_ambient_endpoint(request: AmbientRequest) -> APIResponse:
     """
-    Generate ambient sound effects using ElevenLabs Sound Effects API.
+    Generate ambient sound effects for object type.
     
     Args:
-        request: AmbientRequest containing object type and intensity
+        request: AmbientRequest with object type and intensity
         
     Returns:
-        Ambient audio URL and metadata for background playback
-        
-    Requirements: 6.1, 6.2, 6.4, 11.4
+        Ambient audio URL
     """
     try:
-        async with ElevenLabsService() as service:
-            # Generate contextual ambient sounds based on object type
-            ambient_audio = await service.generate_sound_effects(
+        async with SoundEffectsService() as service:
+            audio_data = await service.generate_ambient_sound(
                 object_type=request.object_type,
-                intensity=request.intensity,
-                duration_seconds=60,  # Default 60 seconds for ambient loops
-                audio_format="mp3"
+                duration=30.0,
+                intensity=request.intensity
             )
-            
-            # Generate session ID for ambient audio tracking
-            ambient_session_id = f"ambient_{request.object_type}_{int(time.time())}"
-            
-            # In production, save audio to file storage and return URL
-            ambient_url = f"/api/audio/ambient/{ambient_session_id}.mp3"
-            
-            # Get sound description for metadata
-            sound_info = service._get_sound_description_for_object(request.object_type)
-            
-            return APIResponse(
-                success=True,
-                data={
-                    "ambient_url": ambient_url,
-                    "session_id": ambient_session_id,
-                    "object_type": request.object_type,
-                    "intensity": request.intensity,
-                    "duration_seconds": 60,
-                    "audio_format": "mp3",
-                    "audio_size_bytes": len(ambient_audio),
-                    "sound_description": sound_info["primary_description"],
-                    "mood": sound_info["mood"],
-                    "secondary_sounds": sound_info.get("secondary_sounds", []),
-                    "volume_mixed": True,  # Indicates audio is pre-mixed for speech compatibility
-                    "conversation_ready": True  # Indicates audio is optimized for conversation use
-                }
-            )
+        
+        # Save audio to temp file
+        audio_id = uuid.uuid4().hex[:12]
+        tmp_path = Path(tempfile.gettempdir()) / f"ambient_{audio_id}.mp3"
+        tmp_path.write_bytes(audio_data)
+        _audio_files[audio_id] = str(tmp_path)
+        
+        return APIResponse(
+            success=True,
+            data={
+                "audio_url": f"/api/audio/{audio_id}",
+                "object_type": request.object_type,
+                "duration": 30.0,
+            }
+        )
         
     except ElevenLabsError as e:
         return APIResponse(
             success=False,
-            error={"code": "AMBIENT_GENERATION_ERROR", "message": str(e)}
+            error={"code": "AMBIENT_ERROR", "message": str(e)}
         )
     except Exception as e:
         return APIResponse(
             success=False,
             error={"code": "INTERNAL_ERROR", "message": str(e)}
         )
+
+
+@app.get("/api/audio/{audio_id}")
+async def serve_audio(audio_id: str):
+    """Serve generated audio files."""
+    path = _audio_files.get(audio_id)
+    if not path or not Path(path).exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.get("/api/ambient/types")
@@ -710,6 +707,10 @@ async def create_profile_endpoint(request: ProfileRequest) -> APIResponse:
         # Generate personality
         generator = PersonalityGenerator()
         profile = generator.generate_profile(request.identification)
+        
+        # Ensure profile has an ID
+        if not profile.id or profile.id == "":
+            profile.id = uuid.uuid4().hex[:12]
         
         # Create voice if style provided
         if request.voice_style:

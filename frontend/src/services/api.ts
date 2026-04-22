@@ -1,47 +1,44 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface IdentifyResponse {
-  species: string;
-  common_name: string;
-  category: string;
-  habitat?: string;
+  object_type: string;
+  species: string | null;
+  characteristics: string[];
   confidence: number;
 }
 
+export interface VoiceConfig {
+  voice_id: string;
+  style: string;
+  settings: Record<string, number>;
+}
+
 export interface ObjectProfile {
+  id: string;
   name: string;
   emoji: string;
   species: string;
-  category: string;
   traits: string[];
   backstory: string;
-  speaking_style: string;
-  voice_id: string;
-  age?: string;
-  mood?: string;
-  tagline?: string;
-}
-
-export interface SpeakRequest {
-  text: string;
-  voice_id: string;
-  emotion?: string;
+  voice_config: VoiceConfig | null;
 }
 
 export interface SingRequest {
-  name: string;
-  personality: string;
-  voice_id: string;
+  profile: ObjectProfile;
+  theme?: string;
 }
 
 export interface Song {
+  id: string;
+  title: string;
   lyrics: string;
   audio_url: string;
-  duration?: number;
+  duration: number;
 }
 
 export interface AmbientRequest {
-  category: string;
+  object_type: string;
+  intensity?: number;
 }
 
 export class APIClient {
@@ -75,21 +72,26 @@ export class APIClient {
     return result.data;
   }
 
-  async generateProfile(identification: any, voiceStyle: string): Promise<ObjectProfile> {
+  async generateProfile(identification: IdentifyResponse, voiceStyle: string): Promise<ObjectProfile> {
     const response = await fetch(`${this.baseURL}/api/profile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        identification,
+        identification: {
+          object_type: identification.object_type,
+          species: identification.species,
+          characteristics: identification.characteristics,
+          confidence: identification.confidence,
+        },
         voice_style: voiceStyle,
       }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate profile');
+      throw new Error(error.detail || error.error?.message || 'Failed to generate profile');
     }
 
     const result = await response.json();
@@ -130,7 +132,7 @@ export class APIClient {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate song');
+      throw new Error(error.detail || error.error?.message || 'Failed to generate song');
     }
 
     const result = await response.json();
@@ -149,12 +151,15 @@ export class APIClient {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        object_type: request.object_type,
+        intensity: request.intensity ?? 0.3
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate ambient sound');
+      throw new Error(error.detail || error.error?.message || 'Failed to generate ambient sound');
     }
 
     const result = await response.json();
@@ -168,9 +173,8 @@ export class APIClient {
   }
 
   getWebSocketURL(): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const host = window.location.host;
-    return `${protocol}://${host}/ws/conversation`;
+    const wsBase = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    return `${wsBase}/ws/conversation`;
   }
 }
 

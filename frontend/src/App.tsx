@@ -198,9 +198,8 @@ export default function App() {
 
     try {
       const song = await apiClient.sing({
-        name: profile.name,
-        personality: profile.traits.join(", "),
-        voice_id: profile.voice_id,
+        profile,
+        theme: 'upbeat and fun',
       });
 
       setCurrentSong(song);
@@ -647,8 +646,7 @@ export default function App() {
                   height: 80 + i * 90,
                   borderRadius: "50%",
                   border: `1px solid rgba(200,241,53,${0.08 / i})`,
-                  animation: `pulse-ring ${1.5 + i * 0.5}s ease-out infinite`,
-                  animationDelay: `${i * 0.3}s`,
+                  animation: `pulse-ring ${1.5 + i * 0.5}s ease-out ${i * 0.3}s infinite`,
                   pointerEvents: "none",
                 }} 
               />
@@ -1016,8 +1014,7 @@ export default function App() {
                     borderRadius: 2,
                     background: `rgba(91,245,211,${0.3 + Math.random() * 0.4})`,
                     height: 6,
-                    animation: `waveform ${0.6 + Math.random() * 0.8}s ease-in-out infinite alternate`,
-                    animationDelay: `${i * 0.03}s`,
+                    animation: `waveform ${0.6 + Math.random() * 0.8}s ease-in-out ${i * 0.03}s infinite alternate`,
                   }} 
                 />
               ))}
