@@ -44,6 +44,7 @@ export default function App() {
   const [recordingTranscript, setRecordingTranscript] = useState("");
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const playRef = useRef<number | null>(null);
   const wsClient = useRef<WebSocketClient | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -686,7 +687,8 @@ export default function App() {
                     ))}
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 48, marginBottom: 8 }}>📷</div>
-                      <p style={{ color: "var(--sub)", fontSize: 13 }}>Tap to capture or upload</p>
+                      <p style={{ color: "var(--sub)", fontSize: 13 }}>Tap to take photo</p>
+                      <p style={{ color: "var(--sub)", fontSize: 11, marginTop: 4 }}>or use buttons below</p>
                     </div>
                   </>
                 )}
@@ -712,6 +714,15 @@ export default function App() {
                 ref={fileRef} 
                 type="file" 
                 accept="image/*" 
+                capture="environment"
+                style={{ display: "none" }} 
+                onChange={handleFileChange} 
+              />
+              
+              <input 
+                ref={galleryRef} 
+                type="file" 
+                accept="image/*" 
                 style={{ display: "none" }} 
                 onChange={handleFileChange} 
               />
@@ -729,8 +740,17 @@ export default function App() {
                   className="btn btn-outline" 
                   style={{ flex: 0, padding: "14px 18px" }} 
                   onClick={() => fileRef.current?.click()}
+                  title="Take Photo"
                 >
-                  🖼
+                  📷
+                </button>
+                <button 
+                  className="btn btn-outline" 
+                  style={{ flex: 0, padding: "14px 18px" }} 
+                  onClick={() => galleryRef.current?.click()}
+                  title="Choose from Gallery"
+                >
+                  🖼️
                 </button>
               </div>
             </div>
