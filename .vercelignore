@@ -1,0 +1,30 @@
+# Ignore backend files when deploying frontend to Vercel
+backend/
+*.py
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Ignore test files
+test_*.py
+debug_*.py
+
+# Ignore audio files
+*.mp3
+*.wav
+audio_files/
+
+# Ignore environment files (use Vercel environment variables instead)
+.env
+.env.local
+
+# Ignore documentation
+*.md
+!README.md
+
+# Ignore config files not needed for frontend
+render.yaml
+requirements.txt
+pyproject.toml
+runtime.txt
