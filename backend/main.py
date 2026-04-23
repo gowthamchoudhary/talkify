@@ -677,12 +677,16 @@ async def websocket_conversation_endpoint(websocket: WebSocket):
                         audio_id = f"conv_{int(time.time() * 1000)}"
                         audio_filename = f"{audio_id}.mp3"
                         audio_path = Path("audio_files") / audio_filename
-                        audio_path.parent.mkdir(exist_ok=True)
+                        audio_path.parent.mkdir(exist_ok=True, parents=True)
                         
                         with open(audio_path, "wb") as f:
                             f.write(audio_data)
                         
+                        # Store both with and without .mp3 extension for compatibility
                         _audio_files[audio_id] = str(audio_path)
+                        _audio_files[audio_filename] = str(audio_path)
+                        
+                        logger.info(f"Saved audio file: {audio_path}, exists: {audio_path.exists()}")
                     
                     # Send response with audio
                     await websocket.send_json({
@@ -709,129 +713,67 @@ async def websocket_conversation_endpoint(websocket: WebSocket):
 
 
 async def generate_personality_response(user_text: str, profile_data: dict) -> str:
-    """Generate a personality-driven response using the object's actual personality."""
+    """Generate a REAL AI-powered personality-driven response using Groq."""
     name = profile_data.get("name", "Object")
     traits = profile_data.get("traits", [])
     species = profile_data.get("species", "object")
     backstory = profile_data.get("backstory", "")
     emoji = profile_data.get("emoji", "")
     
-    # Build personality context
+    # Build personality context for AI
     trait_str = ", ".join(traits) if traits else "friendly"
     
-    # Create a personality-driven prompt
-    personality_context = f"""You are {name}, a {species} {emoji}. 
-Your personality traits are: {trait_str}.
+    # Create system prompt with personality
+    system_prompt = f"""You are {name}, a {species} {emoji}.
+
+Your personality traits: {trait_str}
 Your backstory: {backstory}
 
-Respond to the user's message in character, showing your unique personality.
-Keep responses conversational, authentic, and under 50 words.
-Show your traits through your words and tone."""
+IMPORTANT RULES:
+- Respond as {name} in first person
+- Show your {trait_str} personality in every response
+- Keep responses natural and conversational (2-3 sentences max)
+- Be authentic to your character
+- Don't repeat the user's question back to them
+- Have a real conversation, not generic responses"""
 
-    user_input_lower = user_text.lower()
-    
-    # Handle common questions with personality
-    if any(word in user_input_lower for word in ["hello", "hi", "hey"]):
-        greetings = [
-            f"Hey there! I'm {name}! {backstory[:80]}... What brings you here?",
-            f"Hello! {emoji} I'm {name}, and I'm {trait_str}! Want to chat?",
-            f"Hi! As a {species}, I'm always excited to meet someone new! I'm {name}."
-        ]
-        import random
-        return random.choice(greetings)
-    
-    elif "how are you" in user_input_lower or "how're you" in user_input_lower:
-        mood_responses = {
-            "energetic": f"I'm bursting with energy! Being a {species} is amazing! How about you?",
-            "playful": f"I'm feeling super playful today! Want to have some fun? 😄",
-            "wise": f"I'm doing well, thank you. As a {species}, I find peace in reflection. And you?",
-            "mysterious": f"I'm... intriguing, as always. There's much to discover about me. How are you?",
-            "gentle": f"I'm doing wonderfully, thank you for asking. Your kindness warms my heart. 💕",
-            "creative": f"I'm feeling inspired! My mind is full of creative ideas! How are you feeling?",
-            "curious": f"I'm great! Always curious about everything around me. What about you?",
-            "patient": f"I'm doing well, taking things one moment at a time. How are you today?"
-        }
-        for trait in traits:
-            if trait.lower() in mood_responses:
-                return mood_responses[trait.lower()]
-        return f"I'm doing great! As {name} the {species}, life is always interesting! How about you?"
-    
-    elif "what are you" in user_input_lower or "who are you" in user_input_lower:
-        return f"I'm {name}, a {trait_str} {species}! {backstory} What would you like to know about me?"
-    
-    elif "special" in user_input_lower or "unique" in user_input_lower:
-        special_responses = {
-            "energetic": f"What makes me special? My endless energy and enthusiasm! I bring excitement wherever I go!",
-            "playful": f"I'm special because I make everything fun! Life's too short to be serious all the time! 🎉",
-            "wise": f"My wisdom comes from experience. As a {species}, I've learned much about life and can share insights.",
-            "mysterious": f"What makes me special? Ah, that's for you to discover... I hold many secrets.",
-            "gentle": f"I'm special because I care deeply. My gentle nature helps others feel safe and understood.",
-            "creative": f"My creativity! I see the world differently and can imagine endless possibilities!",
-            "curious": f"My curiosity! I'm always asking questions and learning new things about the world!",
-            "patient": f"My patience. I take time to understand things deeply and never rush important moments."
-        }
-        for trait in traits:
-            if trait.lower() in special_responses:
-                return special_responses[trait.lower()]
-        return f"What makes me special? I'm {name}, a unique {species} with {trait_str} personality! {backstory[:60]}..."
-    
-    elif any(word in user_input_lower for word in ["can't hear", "no sound", "audio", "voice"]):
-        return f"Oh no! You can't hear me? That's frustrating! As {name}, I really want you to hear my voice. Try checking your volume or refreshing!"
-    
-    else:
-        # Generate contextual response based on personality traits
-        responses_by_trait = {
-            "energetic": [
-                f"Wow, {user_text}! That's so exciting! As a {species}, I love when things get interesting!",
-                f"Oh yes! {user_text}! I'm pumped just thinking about it! Let's dive deeper!",
-                f"That's amazing! {user_text} really gets my energy flowing! Tell me more!"
-            ],
-            "playful": [
-                f"Hehe, {user_text}? That's fun! You know what I think? Let's make it even more playful!",
-                f"Ooh, {user_text}! I love it! As a playful {species}, I say let's have some fun with that!",
-                f"That's silly and I love it! {user_text} reminds me of my playful adventures!"
-            ],
-            "wise": [
-                f"Hmm, {user_text}... Let me share some wisdom: {backstory[:40]}... What do you think?",
-                f"Interesting. {user_text} makes me reflect. As a wise {species}, I've learned that perspective matters.",
-                f"{user_text}... Yes, I've pondered this before. Wisdom comes from understanding all sides."
-            ],
-            "mysterious": [
-                f"{user_text}... Intriguing. There's more to this than you might think... 🌙",
-                f"Ah, {user_text}. How mysterious. I know things about this that might surprise you...",
-                f"{user_text}? Curious indeed. As a mysterious {species}, I sense hidden depths here."
-            ],
-            "gentle": [
-                f"Oh, {user_text}... That's so sweet. As a gentle {species}, I appreciate your thoughts. 💕",
-                f"{user_text}... I understand. Let me share something gentle with you: {backstory[:40]}...",
-                f"That's lovely. {user_text} touches my heart. Thank you for sharing that with me."
-            ],
-            "creative": [
-                f"{user_text}! Oh, that sparks so many creative ideas! Imagine if we could...",
-                f"Wow! {user_text} is so inspiring! My creative mind is already imagining possibilities!",
-                f"That's brilliant! {user_text} makes me think of {backstory[:30]}... in a whole new way!"
-            ],
-            "curious": [
-                f"{user_text}? That's fascinating! I'm so curious - tell me more! What else?",
-                f"Ooh, {user_text}! Now I'm curious! As a {species}, I love learning new things!",
-                f"Really? {user_text}! I have so many questions now! This is so interesting!"
-            ],
-            "patient": [
-                f"{user_text}... Let me think about that carefully. Patience helps me understand deeply.",
-                f"I see. {user_text} deserves thoughtful consideration. As a patient {species}, I take my time.",
-                f"{user_text}... Yes, I'm listening. Take your time, I'm here to understand fully."
-            ]
-        }
+    try:
+        # Use Groq API for real AI conversation
+        import httpx
         
-        # Pick response based on primary trait
-        import random
-        if traits:
-            primary_trait = traits[0].lower()
-            if primary_trait in responses_by_trait:
-                return random.choice(responses_by_trait[primary_trait])
-        
-        # Default personality response
-        return f"That's interesting! You know, as {name} the {species}, I find {user_text} quite fascinating! {backstory[:50]}... What else is on your mind?"
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.groq_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_text}
+                    ],
+                    "temperature": 0.8,
+                    "max_tokens": 150,
+                    "top_p": 0.9
+                },
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                ai_response = data["choices"][0]["message"]["content"].strip()
+                return ai_response
+            else:
+                logger.error(f"Groq API error: {response.status_code} - {response.text}")
+                # Fallback to simple response
+                return f"As {name}, I find that interesting! Tell me more."
+                
+    except Exception as e:
+        logger.error(f"Failed to generate AI response: {e}")
+        # Fallback response
+        return f"That's fascinating! As a {trait_str} {species}, I'd love to hear more about that."
 
 
 
