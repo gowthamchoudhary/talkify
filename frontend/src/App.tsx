@@ -114,9 +114,16 @@ export default function App() {
         
         // Auto-play audio if available
         if (message.audio_url && audioRef.current) {
-          audioRef.current.src = message.audio_url;
+          // Prepend API base URL if the audio_url is relative
+          const audioUrl = message.audio_url.startsWith('http') 
+            ? message.audio_url 
+            : `${import.meta.env.VITE_API_BASE_URL}${message.audio_url}`;
+          
+          console.log('Playing audio from:', audioUrl);
+          audioRef.current.src = audioUrl;
           audioRef.current.play().catch(err => {
             console.error('Failed to play audio:', err);
+            setError('Could not play audio. Please check your volume.');
           });
         }
       });
