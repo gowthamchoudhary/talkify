@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface IdentifyResponse {
@@ -39,6 +41,12 @@ export interface Song {
 export interface AmbientRequest {
   object_type: string;
   intensity?: number;
+}
+
+export interface SpeakRequest {
+  text: string;
+  voice_id: string;
+  emotion?: string;
 }
 
 export class APIClient {

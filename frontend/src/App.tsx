@@ -27,7 +27,7 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   
   // Backend data
-  const [identification, setIdentification] = useState<IdentifyResponse | null>(null);
+  const [_identification, setIdentification] = useState<IdentifyResponse | null>(null);
   const [profile, setProfile] = useState<ObjectProfile | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
