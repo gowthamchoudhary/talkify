@@ -114,12 +114,16 @@ export default function App() {
         
         // Auto-play audio if available
         if (message.audio_url && audioRef.current) {
-          // Prepend API base URL if the audio_url is relative
+          // Prepend API base URL if the audio_url is relative (starts with /)
+          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
           const audioUrl = message.audio_url.startsWith('http') 
             ? message.audio_url 
-            : `${import.meta.env.VITE_API_BASE_URL}${message.audio_url}`;
+            : `${apiBaseUrl}${message.audio_url}`;
           
           console.log('Playing audio from:', audioUrl);
+          console.log('API Base URL:', apiBaseUrl);
+          console.log('Original audio_url:', message.audio_url);
+          
           audioRef.current.src = audioUrl;
           audioRef.current.play().catch(err => {
             console.error('Failed to play audio:', err);
