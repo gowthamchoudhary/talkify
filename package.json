@@ -9,6 +9,7 @@
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && python main.py",
+    "build": "cd frontend && npm install && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && pip install -r requirements.txt",
