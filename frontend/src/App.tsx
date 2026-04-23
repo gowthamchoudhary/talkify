@@ -582,26 +582,27 @@ export default function App() {
         </div>
       )}
 
-      {/* Nav dots overlay */}
-      <div style={{ 
-        position: "absolute", 
-        zIndex: 100, 
-        left: "50%", 
-        transform: "translateX(-50%)", 
-        top: 16, 
-        display: "flex", 
-        gap: 6 
-      }}>
-        {screens.map((s) => (
-          <div 
-            key={s} 
-            className={`nav-dot ${screen === s ? "active" : ""}`} 
-            onClick={() => setScreen(s)} 
-          />
-        ))}
-      </div>
+      <div className="phone" style={{ position: 'relative' }}>
+        <div className="notch" />
 
-      <div className="phone">
+        {/* Nav dots overlay - positioned relative to phone */}
+        <div style={{ 
+          position: "absolute", 
+          zIndex: 100, 
+          left: "50%", 
+          transform: "translateX(-50%)", 
+          top: 16, 
+          display: "flex", 
+          gap: 6 
+        }}>
+          {screens.map((s) => (
+            <div 
+              key={s} 
+              className={`nav-dot ${screen === s ? "active" : ""}`} 
+              onClick={() => setScreen(s)} 
+            />
+          ))}
+        </div>
         <div className="notch" />
 
         {/* ─── HOME SCREEN ─── */}
