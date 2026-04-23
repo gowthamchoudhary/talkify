@@ -310,6 +310,53 @@ class ElevenLabsClient:
         response = await self._make_request_with_retry("POST", endpoint, **kwargs)
         return await response.json()
     
+    async def post_multipart(
+        self, 
+        endpoint: str, 
+        json_data: Optional[Dict[str, Any]] = None,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Make POST request expecting multipart response (audio + metadata).
+        
+        Args:
+            endpoint: API endpoint path
+            json_data: JSON data to send
+            data: Raw data to send
+            headers: Additional headers
+            
+        Returns:
+            Dictionary with 'audio' (bytes) and 'metadata' (dict)
+        """
+        kwargs = {}
+        if json_data is not None:
+            kwargs["json"] = json_data
+        if data is not None:
+            kwargs["data"] = data
+        if headers:
+            kwargs["headers"] = headers
+            
+        response = await self._make_request_with_retry("POST", endpoint, **kwargs)
+        
+        # Handle multipart response
+        content_type = response.headers.get('content-type', '')
+        if 'multipart' in content_type:
+            # For now, just return the raw audio data
+            # In a full implementation, you'd parse the multipart response
+            audio_data = await response.read()
+            return {
+                'audio': audio_data,
+                'metadata': {
+                    'song_id': response.headers.get('song-id'),
+                    'content_type': content_type
+                }
+            }
+        else:
+            # Fallback for non-multipart responses
+            audio_data = await response.read()
+            return {'audio': audio_data, 'metadata': {}}
+
     async def post_audio(
         self, 
         endpoint: str, 

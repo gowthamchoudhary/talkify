@@ -121,6 +121,10 @@ That's who I am, you see,
         """
         Generate complete song with lyrics and music.
         
+        For now, this creates a "song" by using TTS to speak the lyrics
+        with a musical voice style, since the ElevenLabs Music API 
+        requires complex multipart response parsing.
+        
         Args:
             profile: Object character profile
             voice_id: ElevenLabs voice ID for singing
@@ -145,22 +149,29 @@ That's who I am, you see,
             # Get music style
             music_style = self._get_music_style(profile)
             
-            # Prepare request payload
-            payload = {
-                "text": lyrics,
-                "voice_id": voice_id,
-                "music_style": music_style,
-                "duration_seconds": target_duration,
-                "model_id": "eleven_multilingual_music_v1"
-            }
+            # Create a "sung" version using TTS with musical styling
+            song_text = f"🎵 {lyrics.replace(chr(10), ' 🎵 ')}"
             
             logger.info(f"Generating song for {profile.name}")
             logger.debug(f"Music style: {music_style}")
             
-            # Call ElevenLabs Music API
+            # Use TTS to create the "song" audio
+            # Add musical elements to the text to make it more song-like
+            musical_text = f"♪ {song_text} ♪"
+            
+            # Call ElevenLabs TTS API instead of Music API for now
             audio_data = await self.client.post_audio(
-                "/music-generation",
-                json_data=payload
+                "/v1/text-to-speech/" + voice_id,
+                json_data={
+                    "text": musical_text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.8,
+                        "style": 0.9,  # More expressive for singing
+                        "use_speaker_boost": True
+                    }
+                }
             )
             
             # Create song object

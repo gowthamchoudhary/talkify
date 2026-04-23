@@ -126,7 +126,8 @@ class GroqVisionService:
                     return self._create_fallback_identification(filename)
                 elif response.status != 200:
                     error_text = await response.text()
-                    logger.error(f"Groq API error: {error_text}")
+                    logger.error(f"Groq API error (status {response.status}): {error_text}")
+                    logger.info(f"Image info: filename={filename}, size={len(image_data)} bytes, mime_type={mime_type}")
                     return self._create_fallback_identification(filename)
                 
                 result = await response.json()

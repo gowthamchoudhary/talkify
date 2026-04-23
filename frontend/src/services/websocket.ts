@@ -2,6 +2,7 @@ export interface ConversationMessage {
   from: 'user' | 'obj';
   text: string;
   timestamp?: number;
+  audio_url?: string;
 }
 
 export class WebSocketClient {
@@ -12,6 +13,7 @@ export class WebSocketClient {
   private reconnectDelay = 1000;
   private messageHandlers: ((message: ConversationMessage) => void)[] = [];
   private statusHandlers: ((status: string) => void)[] = [];
+  private profile: any = null;
 
   constructor(url: string) {
     this.url = url;
@@ -33,13 +35,17 @@ export class WebSocketClient {
           try {
             const data = JSON.parse(event.data);
             
-            if (data.type === 'response') {
+            if (data.type === 'message') {
               const message: ConversationMessage = {
-                from: 'obj',
+                from: data.from || 'obj',
                 text: data.text,
-                timestamp: Date.now(),
+                timestamp: data.timestamp || Date.now(),
+                audio_url: data.audio_url,
               };
               this.notifyMessage(message);
+            } else if (data.type === 'error') {
+              console.error('WebSocket error:', data.message);
+              this.notifyStatus('error');
             } else if (data.type === 'status') {
               this.notifyStatus(data.status);
             }
@@ -65,6 +71,16 @@ export class WebSocketClient {
     });
   }
 
+  initializeWithProfile(profile: any) {
+    this.profile = profile;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'init',
+        profile: profile,
+      }));
+    }
+  }
+
   private attemptReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
@@ -86,6 +102,7 @@ export class WebSocketClient {
       this.ws.send(JSON.stringify({
         type: 'message',
         text,
+        profile: this.profile, // Include profile for context
       }));
     } else {
       console.error('WebSocket is not connected');

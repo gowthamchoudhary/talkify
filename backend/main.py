@@ -5,6 +5,7 @@ Main application entry point with middleware, dependencies, and core endpoints.
 import os
 import time
 import uuid
+import logging
 import tempfile
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -38,6 +39,9 @@ from src.exceptions import ElevenLabsError, GeminiError, ValidationError
 from src.websocket_handler import websocket_manager
 from src.validation import validate_image_file
 from fastapi import UploadFile, File
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # In-memory map of session audio files
 _audio_files: Dict[str, str] = {}
@@ -300,7 +304,7 @@ async def recommend_voice_style(object_type: str, traits: str = "") -> APIRespon
 @app.post("/api/speak")
 async def text_to_speech_endpoint(request: SpeakRequest) -> APIResponse:
     """
-    Convert text to speech using ElevenLabs TTS v3 API with emotional tags.
+    Convert text to speech using ElevenLabs TTS API.
     
     Args:
         request: SpeakRequest containing text and voice configuration
@@ -309,32 +313,34 @@ async def text_to_speech_endpoint(request: SpeakRequest) -> APIResponse:
         Audio URL and metadata for playback
     """
     try:
-        async with ElevenLabsService() as service:
-            # Get session ID from voice config or generate one
-            session_id = f"tts_session_{int(time.time())}"
-            
-            # Get conversation context for emotional analysis
-            conversation_context = service.get_conversation_context(session_id)
-            
-            # Convert text to speech using TTS v3 with emotional tags
-            audio_data = await service.text_to_speech_v3(
+        # Use simple ElevenLabs client
+        from src.services.elevenlabs_simple import SimpleElevenLabsClient
+        from src.config import settings
+        
+        async with SimpleElevenLabsClient(api_key=settings.elevenlabs_api_key) as client:
+            # Convert text to speech
+            audio_data = await client.text_to_speech(
                 text=request.text,
                 voice_id=request.voice_config.voice_id,
-                voice_settings=request.voice_config.settings,
-                conversation_context=conversation_context,
-                audio_format="mp3",
-                enable_streaming=True
+                voice_settings=request.voice_config.settings
             )
             
-            # Add the text to conversation context for future emotional analysis
-            service.add_conversation_message(session_id, request.text)
+            # Generate session ID and save audio file
+            session_id = f"tts_session_{int(time.time())}"
+            audio_filename = f"{session_id}.mp3"
+            audio_path = Path("audio_files") / audio_filename
             
-            # In a production environment, you would save the audio to a file storage service
-            # and return the URL. For now, we'll return a placeholder URL with metadata
-            audio_url = f"/api/audio/{session_id}_{int(time.time())}.mp3"
+            # Create audio directory if it doesn't exist
+            audio_path.parent.mkdir(exist_ok=True)
             
-            # Detect emotional tags for response metadata
-            emotional_tags = service._detect_emotional_tags(request.text, conversation_context)
+            # Save audio data to file
+            with open(audio_path, "wb") as f:
+                f.write(audio_data)
+            
+            # Store in memory map for serving
+            _audio_files[session_id] = str(audio_path)
+            
+            audio_url = f"/api/audio/{audio_filename}"
             
             return APIResponse(
                 success=True,
@@ -343,23 +349,18 @@ async def text_to_speech_endpoint(request: SpeakRequest) -> APIResponse:
                     "session_id": session_id,
                     "text": request.text,
                     "voice_id": request.voice_config.voice_id,
-                    "emotional_tags": emotional_tags,
                     "audio_format": "mp3",
                     "audio_size_bytes": len(audio_data),
                     "duration_estimate": len(request.text) * 0.1,  # Rough estimate: 0.1s per character
-                    "voice_style": request.voice_config.style.value
+                    "voice_style": request.voice_config.style.value if hasattr(request.voice_config, 'style') else "default"
                 }
             )
         
-    except ElevenLabsError as e:
+    except Exception as e:
+        logger.error(f"TTS failed: {e}")
         return APIResponse(
             success=False,
             error={"code": "TTS_ERROR", "message": str(e)}
-        )
-    except Exception as e:
-        return APIResponse(
-            success=False,
-            error={"code": "INTERNAL_ERROR", "message": str(e)}
         )
 
 
@@ -412,10 +413,38 @@ async def generate_ambient_endpoint(request: AmbientRequest) -> APIResponse:
 @app.get("/api/audio/{audio_id}")
 async def serve_audio(audio_id: str):
     """Serve generated audio files."""
-    path = _audio_files.get(audio_id)
-    if not path or not Path(path).exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
-    return FileResponse(path, media_type="audio/mpeg")
+    # Handle both song_id.mp3 and song_id formats
+    clean_id = audio_id.replace('.mp3', '')
+    
+    # Check if file exists in memory map
+    path = _audio_files.get(clean_id)
+    if path and Path(path).exists():
+        return FileResponse(
+            path, 
+            media_type="audio/mpeg",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    
+    # Also check direct file path
+    audio_path = Path("audio_files") / audio_id
+    if audio_path.exists():
+        return FileResponse(
+            str(audio_path), 
+            media_type="audio/mpeg",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET", 
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    
+    raise HTTPException(status_code=404, detail="Audio file not found")
 
 
 @app.get("/api/ambient/types")
@@ -521,82 +550,202 @@ async def generate_contextual_ambient(
         )
 
 
+@app.get("/api/scribe-token")
+async def get_scribe_token():
+    """
+    Generate a single-use token for ElevenLabs speech-to-text.
+    This token is used by the frontend for secure microphone access.
+    """
+    try:
+        from src.services.elevenlabs_simple import SimpleElevenLabsClient
+        from src.config import settings
+        
+        async with SimpleElevenLabsClient(api_key=settings.elevenlabs_api_key) as client:
+            # Create single-use token for realtime scribe
+            url = f"{client.base_url}/tokens/single-use"
+            headers = {
+                "xi-api-key": client.api_key,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "purpose": "realtime_scribe"
+            }
+            
+            async with client.session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    token_data = await response.json()
+                    return APIResponse(
+                        success=True,
+                        data=token_data
+                    )
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Token generation failed: {error_text}")
+                    return APIResponse(
+                        success=False,
+                        error={"code": "TOKEN_ERROR", "message": "Failed to generate token"}
+                    )
+    except Exception as e:
+        logger.error(f"Token generation error: {e}")
+        return APIResponse(
+            success=False,
+            error={"code": "INTERNAL_ERROR", "message": str(e)}
+        )
+
+
+async def generate_personality_response(user_text: str, profile_data: Dict[str, Any]) -> str:
+    """Generate a personality-driven response to user input."""
+    name = profile_data.get("name", "Object")
+    traits = profile_data.get("traits", [])
+    backstory = profile_data.get("backstory", "")
+    species = profile_data.get("species", "object")
+    
+    # Simple personality-based responses
+    trait_str = ", ".join(traits[:2]) if traits else "friendly"
+    
+    responses = [
+        f"As a {trait_str} {species}, I think {user_text.lower()} is quite interesting!",
+        f"You know, being {name} means I see things differently. About {user_text.lower()} - {backstory[:50]}...",
+        f"That's fascinating! As a {species} with {trait_str} personality, I'd say {user_text.lower()} reminds me of my own experiences.",
+        f"Oh, {user_text.lower()}? That's something I, {name}, can definitely relate to! {backstory[:30]}...",
+        f"Interesting perspective! Being {trait_str}, I find {user_text.lower()} quite thought-provoking."
+    ]
+    
+    import random
+    return random.choice(responses)
+
+
 @app.websocket("/ws/conversation")
 async def websocket_conversation_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time voice conversation.
-    
-    Handles real-time audio input/output for conversations with AI characters.
-    Maintains conversation context and session state throughout the interaction.
-    
-    Requirements: 5.1, 5.4, 5.8, 10.6, 11.3
+    Simple WebSocket endpoint for real-time conversation.
     """
-    session_id = None
+    await websocket.accept()
+    logger.info("WebSocket conversation connected")
+    
     try:
-        # Generate unique session ID
-        session_id = f"ws_session_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        
-        # Connect WebSocket
-        connected = await websocket_manager.connect(websocket, session_id)
-        if not connected:
-            await websocket.close(code=1011, reason="Failed to establish connection")
-            return
-        
-        # Main message loop
+        # Wait for initial message with profile data
         while True:
             try:
-                # Check if we're receiving text (JSON) or binary (audio) data
-                message = await websocket.receive()
+                message = await websocket.receive_json()
                 
-                if "text" in message:
-                    # Handle JSON message
-                    import json
-                    try:
-                        data = json.loads(message["text"])
-                        await websocket_manager.handle_message(session_id, data)
-                    except json.JSONDecodeError as e:
-                        await websocket_manager.send_message(session_id, {
+                if message.get("type") == "init":
+                    profile_data = message.get("profile")
+                    if not profile_data:
+                        await websocket.send_json({
                             "type": "error",
-                            "error": "invalid_json",
-                            "message": f"Invalid JSON format: {e}"
+                            "message": "Profile data required"
                         })
-                
-                elif "bytes" in message:
-                    # Handle binary audio data
-                    audio_data = message["bytes"]
-                    await websocket_manager.handle_audio_data(session_id, audio_data)
-                
-                else:
-                    await websocket_manager.send_message(session_id, {
-                        "type": "error",
-                        "error": "invalid_message_format",
-                        "message": "Message must contain either text or bytes"
+                        continue
+                    
+                    # Send welcome message
+                    await websocket.send_json({
+                        "type": "message",
+                        "from": "obj",
+                        "text": f"Hello! I'm {profile_data['name']}, {profile_data.get('species', 'an object')}. {profile_data.get('backstory', 'Nice to meet you!')}",
+                        "timestamp": int(time.time() * 1000)
+                    })
+                    
+                elif message.get("type") == "message":
+                    user_text = message.get("text", "").strip()
+                    if not user_text:
+                        continue
+                    
+                    # Get profile from previous init (simple approach)
+                    profile_data = message.get("profile", {})
+                    
+                    # Generate AI response
+                    response_text = await generate_personality_response(user_text, profile_data)
+                    
+                    # Generate TTS audio
+                    voice_id = profile_data.get("voice_config", {}).get("voice_id", "21m00Tcm4TlvDq8ikWAM")
+                    
+                    from src.services.elevenlabs_simple import SimpleElevenLabsClient
+                    async with SimpleElevenLabsClient(api_key=settings.elevenlabs_api_key) as client:
+                        audio_data = await client.text_to_speech(
+                            text=response_text,
+                            voice_id=voice_id,
+                            voice_settings={
+                                "stability": 0.6,
+                                "similarity_boost": 0.8,
+                                "style": 0.7,
+                                "use_speaker_boost": True
+                            }
+                        )
+                        
+                        # Save audio file
+                        audio_id = f"conv_{int(time.time() * 1000)}"
+                        audio_filename = f"{audio_id}.mp3"
+                        audio_path = Path("audio_files") / audio_filename
+                        audio_path.parent.mkdir(exist_ok=True)
+                        
+                        with open(audio_path, "wb") as f:
+                            f.write(audio_data)
+                        
+                        _audio_files[audio_id] = str(audio_path)
+                    
+                    # Send response with audio
+                    await websocket.send_json({
+                        "type": "message",
+                        "from": "obj",
+                        "text": response_text,
+                        "audio_url": f"/api/audio/{audio_filename}",
+                        "timestamp": int(time.time() * 1000)
                     })
                     
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                await websocket_manager.send_message(session_id, {
+                logger.error(f"WebSocket error: {e}")
+                await websocket.send_json({
                     "type": "error",
-                    "error": "message_processing_error",
                     "message": str(e)
                 })
-                
+        
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket disconnected")
     except Exception as e:
-        if session_id:
-            try:
-                await websocket_manager.send_message(session_id, {
-                    "type": "error",
-                    "error": "connection_error",
-                    "message": str(e)
-                })
-            except:
-                pass
-    finally:
-        if session_id:
-            await websocket_manager.disconnect(session_id)
+        logger.error(f"WebSocket connection error: {e}")
+
+
+async def generate_personality_response(user_text: str, profile_data: dict) -> str:
+    """Generate a personality-driven response."""
+    name = profile_data.get("name", "Object")
+    traits = profile_data.get("traits", [])
+    species = profile_data.get("species", "object")
+    backstory = profile_data.get("backstory", "")
+    
+    # Simple personality-based responses
+    trait_responses = {
+        "energetic": ["That's exciting!", "I love your enthusiasm!", "Let's do this!"],
+        "creative": ["That's so imaginative!", "I see it from a unique angle!", "How artistic!"],
+        "playful": ["Hehe, that's fun!", "Let's play with that idea!", "You're so silly!"],
+        "wise": ["That's quite thoughtful.", "Let me share some wisdom...", "I've learned that..."],
+        "mysterious": ["Interesting... very interesting.", "There's more to this than meets the eye.", "Hmm, curious indeed."],
+        "gentle": ["That's so sweet.", "I understand how you feel.", "Take your time with that."],
+        "dramatic": ["Oh my! How thrilling!", "This is absolutely magnificent!", "What a spectacular moment!"]
+    }
+    
+    # Pick response based on traits
+    if traits:
+        primary_trait = traits[0].lower()
+        if primary_trait in trait_responses:
+            import random
+            base_response = random.choice(trait_responses[primary_trait])
+        else:
+            base_response = "That's interesting!"
+    else:
+        base_response = "That's nice!"
+    
+    # Create contextual response
+    if "hello" in user_text.lower() or "hi" in user_text.lower():
+        return f"Hello there! I'm {name}, a {species}. {base_response} What would you like to chat about?"
+    elif "how are you" in user_text.lower():
+        return f"{base_response} As a {species}, I'm doing wonderfully! {backstory[:50]}... How about you?"
+    elif "what are you" in user_text.lower():
+        return f"I'm {name}, a {species}! {backstory[:100]}... {base_response}"
+    else:
+        return f"{base_response} You know, as a {species}, I find that quite fascinating! What else is on your mind?"
 
 
 @app.get("/api/conversation/sessions")
@@ -747,30 +896,88 @@ async def generate_song_endpoint(request: SingRequest) -> APIResponse:
         Song with lyrics and audio URL
     """
     try:
-        voice_id = request.profile.voice_config.voice_id if request.profile.voice_config else "default_voice"
+        voice_id = request.profile.voice_config.voice_id if request.profile.voice_config else "21m00Tcm4TlvDq8ikWAM"
         
-        async with MusicGeneratorService() as service:
-            song = await service.generate_song(
-                profile=request.profile,
-                voice_id=voice_id,
-                theme=request.theme,
-                target_duration=45.0
-            )
+        # Use simple ElevenLabs client
+        from src.services.elevenlabs_simple import SimpleElevenLabsClient
+        from src.config import settings
+        
+        async with SimpleElevenLabsClient(api_key=settings.elevenlabs_api_key) as client:
+            # Generate lyrics
+            name = request.profile.name
+            traits = ", ".join(request.profile.traits[:2])
+            theme = request.theme or "being awesome"
+            
+            lyrics = f"""I'm {name}, {traits} and free,
+{theme} is what defines me.
+Through every day and every night,
+I shine my own unique light.
+
+{request.profile.backstory[:50]}...
+That's my story, can't you see?
+I'm {name}, just being me!"""
+            
+            # Generate "song" using ElevenLabs Music API
+            music_prompt = f"An upbeat cheerful song about {name}, a {request.profile.species}. {theme} style music."
+            
+            try:
+                # Try music generation first
+                audio_data = await client.generate_music(
+                    prompt=music_prompt,
+                    music_length_ms=45000  # 45 seconds
+                )
+                generation_method = "music"
+            except Exception as music_error:
+                logger.warning(f"Music generation failed, falling back to TTS: {music_error}")
+                # Fallback to TTS-based "singing"
+                musical_text = f"♪ {lyrics.replace(chr(10), ' ♪ ')} ♪"
+                audio_data = await client.text_to_speech(
+                    text=musical_text,
+                    voice_id=voice_id,
+                    voice_settings={
+                        "stability": 0.5,
+                        "similarity_boost": 0.8,
+                        "style": 0.9,
+                        "use_speaker_boost": True
+                    }
+                )
+                generation_method = "tts"
+            
+            # Save audio file to serve it
+            song_id = f"song_{uuid.uuid4().hex[:12]}"
+            audio_filename = f"{song_id}.mp3"
+            audio_path = Path("audio_files") / audio_filename
+            
+            # Create audio directory if it doesn't exist
+            audio_path.parent.mkdir(exist_ok=True)
+            
+            # Save audio data to file
+            with open(audio_path, "wb") as f:
+                f.write(audio_data)
+            
+            # Store in memory map for serving
+            _audio_files[song_id] = str(audio_path)
+            
+            # Create song object
+            song = {
+                "id": song_id,
+                "title": f"{request.profile.name}'s Song",
+                "lyrics": lyrics,
+                "audio_url": f"/api/audio/{audio_filename}",
+                "duration": 45.0,
+                "generation_method": generation_method
+            }
         
         return APIResponse(
             success=True,
-            data=song.model_dump()
+            data=song
         )
         
-    except ElevenLabsError as e:
+    except Exception as e:
+        logger.error(f"Song generation failed: {e}")
         return APIResponse(
             success=False,
             error={"code": "MUSIC_ERROR", "message": str(e)}
-        )
-    except Exception as e:
-        return APIResponse(
-            success=False,
-            error={"code": "INTERNAL_ERROR", "message": str(e)}
         )
 
 

@@ -80,3 +80,13 @@ jspm_packages/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Audio files (generated at runtime)
+backend/audio_files/
+*.mp3
+*.wav
+
+# Test files
+backend/test_*.py
+backend/debug_*.py
+backend/*_test_*.py

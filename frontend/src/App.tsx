@@ -40,11 +40,14 @@ export default function App() {
   const [playProgress, setPlayProgress] = useState(0);
   const [wsStatus, setWsStatus] = useState<string>("disconnected");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTranscript, setRecordingTranscript] = useState("");
   
   const fileRef = useRef<HTMLInputElement>(null);
   const playRef = useRef<number | null>(null);
   const wsClient = useRef<WebSocketClient | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scribeConnectionRef = useRef<any>(null);
 
   // Loading animation
   useEffect(() => {
@@ -107,13 +110,24 @@ export default function App() {
       
       wsClient.current.onMessage((message) => {
         setConversationMessages(prev => [...prev, message]);
+        
+        // Auto-play audio if available
+        if (message.audio_url && audioRef.current) {
+          audioRef.current.src = message.audio_url;
+          audioRef.current.play().catch(err => {
+            console.error('Failed to play audio:', err);
+          });
+        }
       });
       
       wsClient.current.onStatus((status) => {
         setWsStatus(status);
       });
       
-      wsClient.current.connect().catch(err => {
+      wsClient.current.connect().then(() => {
+        // Initialize with profile after connection
+        wsClient.current?.initializeWithProfile(profile);
+      }).catch(err => {
         console.error('WebSocket connection failed:', err);
         setError('Failed to connect to conversation service');
       });
@@ -190,6 +204,90 @@ export default function App() {
     }
   };
 
+  const startVoiceRecording = async () => {
+    try {
+      setIsRecording(true);
+      setRecordingTranscript("");
+      
+      // Check if browser supports Web Speech API
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        setError('Speech recognition not supported in this browser');
+        setIsRecording(false);
+        return;
+      }
+      
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setChatInput(prev => (prev + ' ' + finalTranscript).trim());
+          setRecordingTranscript("");
+        } else {
+          setRecordingTranscript(interimTranscript);
+        }
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setError(`Speech recognition error: ${event.error}`);
+        stopVoiceRecording();
+      };
+      
+      recognition.onend = () => {
+        if (isRecording) {
+          // Restart if still recording
+          recognition.start();
+        }
+      };
+      
+      recognition.start();
+      scribeConnectionRef.current = recognition;
+      
+    } catch (err) {
+      console.error('Failed to start voice recording:', err);
+      setError('Failed to start voice recording');
+      setIsRecording(false);
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (scribeConnectionRef.current) {
+      try {
+        scribeConnectionRef.current.stop();
+      } catch (e) {
+        console.error('Error stopping recognition:', e);
+      }
+      scribeConnectionRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingTranscript("");
+  };
+
+  const toggleVoiceRecording = () => {
+    if (isRecording) {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
+    }
+  };
+
   const handleRequestSong = async () => {
     if (!profile) return;
 
@@ -204,10 +302,20 @@ export default function App() {
 
       setCurrentSong(song);
       
-      // Load audio
+      // Load audio with error handling
       if (audioRef.current) {
         audioRef.current.src = song.audio_url;
         audioRef.current.load();
+        
+        // Add event listeners for audio loading
+        audioRef.current.onloadeddata = () => {
+          console.log('Audio loaded successfully');
+        };
+        
+        audioRef.current.onerror = (e) => {
+          console.error('Audio loading error:', e);
+          setError('Failed to load audio. The song may still be generating.');
+        };
       }
     } catch (err) {
       console.error('Failed to generate song:', err);
@@ -423,6 +531,11 @@ export default function App() {
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
         }
         
         .float { 
@@ -1098,13 +1211,14 @@ export default function App() {
                 <input
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
-                  onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Say something…"
+                  onKeyPress={e => e.key === 'Enter' && !isRecording && handleSendMessage()}
+                  placeholder={isRecording ? "Listening..." : recordingTranscript || "Say something…"}
+                  disabled={isRecording}
                   style={{
                     background: "none", 
                     border: "none", 
                     outline: "none",
-                    color: "var(--text)", 
+                    color: isRecording ? "var(--lime)" : "var(--text)", 
                     fontSize: 14, 
                     width: "100%",
                     fontFamily: "'Syne', sans-serif",
@@ -1112,13 +1226,13 @@ export default function App() {
                 />
               </div>
               <button 
-                onClick={handleSendMessage}
-                disabled={!chatInput.trim() || wsStatus !== "connected"}
+                onClick={chatInput.trim() ? handleSendMessage : toggleVoiceRecording}
+                disabled={wsStatus !== "connected"}
                 style={{
                   width: 48, 
                   height: 48, 
                   borderRadius: "50%",
-                  background: chatInput.trim() ? "var(--lime)" : "var(--muted)",
+                  background: chatInput.trim() ? "var(--lime)" : isRecording ? "var(--coral)" : "var(--muted)",
                   border: "none", 
                   cursor: "pointer", 
                   fontSize: 18,
@@ -1126,9 +1240,10 @@ export default function App() {
                   alignItems: "center", 
                   justifyContent: "center",
                   transition: "all 0.2s",
+                  animation: isRecording ? "pulse 1.5s ease-in-out infinite" : "none",
                 }}
               >
-                {chatInput.trim() ? "↑" : "🎤"}
+                {chatInput.trim() ? "↑" : isRecording ? "⏹" : "🎤"}
               </button>
             </div>
 
